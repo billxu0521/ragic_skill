@@ -59,6 +59,49 @@ const headers = { 'Authorization': 'Basic ' + credentials };
 2. 點右上角 **≡ 選單 → Form Settings → APIs**
 3. 或直接看網址列：`https://www.ragic.com/{account}/{tab}/{sheetIndex}`
 
+## 名詞定義 Glossary
+
+以下以 `https://www.ragic.com/testAP/testForm/1/3` 為例說明各名詞：
+
+### 結構性名詞
+
+| 名詞 | 範例值 | 定義 |
+|------|--------|------|
+| **APName** | `testAP` | 使用者的資料庫名稱 |
+| **Path** | `/testForm` | 表單所在的頁籤，**前面斜線不可省略** |
+| **SheetIndex** | `1` | 表單在頁籤內的索引 |
+| **pathToForm** | `/testForm/1` | Path + SheetIndex 的組合，通常作為單一參數使用 |
+| **rootNodeId / recordId** | `3` | 這筆資料（紀錄）的 ID，可透過 `getNewNodeId(keyFieldId)` 或 `getOldNodeId(keyFieldId)` 取得 |
+
+### 欄位相關名詞
+
+| 名詞 | 定義 |
+|------|------|
+| **Key field** | 表單的主鍵，`keyFieldId` 是主鍵欄位的 ID，可在資料庫欄位定義文件中找到，或用 `entry.getKeyFieldId()` 取得 |
+| **fieldId** | 欄位的 ID，`fieldName` 是欄位的名稱。fieldId 可在資料庫欄位定義文件中找到，或在設計模式選取欄位後 → 欄位設定 → 基本，**欄位名稱下方的七碼數字**即為 fieldId |
+| **Subtable** | 子表格，可想像成表單下方還有一張表單，也有自己的 keyFieldId、fieldId、rootNodeId |
+| **subtableId** | 子表格的 ID，可在資料庫欄位定義文件中找到，概念上等同於子表格的 keyFieldId |
+| **subtableRowIndex** | 子表格某列的索引，通常用迴圈指定 |
+| **subtableFieldId** | 子表格欄位的 ID，可在資料庫欄位定義文件中找到，概念上等同於子表格的 fieldId |
+| **subtableRootNodeId** | 子表格某列的 ID，可透過 `getSubtableRootNodeId(subtableId, subtableRowIndex)` 取得，概念上等同於子表格的 rootNodeId |
+
+### JS 工作引擎預定義變數
+
+| 變數 | 說明 |
+|------|------|
+| **db** | 資料庫操作物件，透過 `getAPIQuery()` 取得查詢物件 |
+| **query** | 表單查詢物件，用於檢索或操作記錄 |
+| **entry** | 單筆記錄物件，用 `setFieldValue()`/`getFieldValue()` 操作欄位 |
+| **param** | 取得欄位新舊值，Pre/Post-workflow 中可用（Global Workflow 不可用） |
+| **response** | 設定工作流程執行後的狀態與訊息 |
+| **user** | 當前使用者物件，可取得 email、名稱、群組 |
+| **mailer** | 撰寫並發送 email 通知 |
+| **util** | 發送 HTTP 請求、管理檔案下載/上傳 |
+| **approval** | 建立或取消記錄的審核流程 |
+| **approvalParam** | 審核 Workflow 中的預定義變數 |
+
+---
+
 ## 角色定位：三種協助模式
 
 | 使用者需求 | Claude 的角色 |
