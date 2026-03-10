@@ -58,6 +58,28 @@ db.deleteOldRecords('/testAP/testForm/1', 30, true);
 
 // 重算指定欄位
 db.recalculateAll('/testAP/testForm/1', '1000001', '1000002');
+
+// entryCopier 完整用法 — JSON 設定格式
+// COPY 的 key 為目標欄位 ID，value 為來源欄位 ID
+db.entryCopier(JSON.stringify({
+  THIS_PATH: '/testAP/sourceForm/1',     // 來源表單
+  THIS_NODEID: nodeId,                     // 來源記錄 ID
+  NEW_PATH: '/testAP/targetForm/2',        // 目標表單
+  COPY: {
+    2000001: 1000001,  // 目標欄位:來源欄位
+    2000002: 1000002,
+    2000010: 1000010   // 子表格欄位也可對應
+  }
+}), response);
+
+// 複製後取得新記錄 ID，再做進一步操作
+var newNodeId = response.getRootNodeId();
+var targetQuery = db.getAPIQuery('/testAP/targetForm/2');
+var newEntry = targetQuery.getAPIEntry(newNodeId);
+newEntry.setFieldValue('2000003', 'New');
+var current = new Date();
+newEntry.setFieldValue('2000004', current.getFullYear() + '/' + (current.getMonth() + 1) + '/' + current.getDate());
+newEntry.save();
 ```
 
 ---
@@ -82,6 +104,10 @@ db.recalculateAll('/testAP/testForm/1', '1000001', '1000002');
 | `deleteEntry(nodeId)` | 依 Record ID 刪除記錄 |
 | `deleteEntryToRecycleBin(nodeId)` | 依 Record ID 將記錄移到回收站 |
 | `setGetUserNameAsSelectUserValue(boolean)` | false 時，選擇用戶欄位回傳 email 而非使用者名稱 |
+| `setUpdateMode()` | Post-workflow 中使用，配合 `setIgnoreAllMasks` 取得未遮罩值 |
+| `setIgnoreAllMasks(boolean)` | true 時取消所有遮罩欄位，取得原始值 |
+| `addIgnoreMaskDomain(fieldId)` | 取消指定欄位的遮罩，僅解除特定欄位 |
+| `setFullTextSearch(queryTerm)` | 全文檢索篩選，替代 `addFilter` 使用 |
 | `setFieldValueModeAsNodeIdOnly(boolean)` | true 時，欄位值回傳關聯資料的 nodeId 而非顯示值 |
 | `setFieldValueModeAsNodeIdAndValue(boolean)` | true 時，同時回傳 nodeId 和顯示值（用於 loadAllDefaultValues 行為異常時） |
 
@@ -126,6 +152,29 @@ var newEntry = query.insertAPIEntry();
 newEntry.setFieldValue('1000001', '值');
 newEntry.save();
 ```
+
+**篩選進階模式**
+
+```js
+// OR 條件：同一欄位多次 addFilter，視為 OR
+var query = db.getAPIQuery('/testAP/testForm/1');
+query.addFilter('1000002', '=', 'Green');
+query.addFilter('1000002', '=', 'Red');
+// 結果：1000002 為 Green 或 Red 的記錄
+
+// Range 查詢：同一欄位用 > 和 < 組合
+var query2 = db.getAPIQuery('/testAP/testForm/1');
+query2.addFilter('1000006', '>', '20');
+query2.addFilter('1000006', '<', '40');
+// 結果：1000006 大於 20 且小於 40 的記錄
+
+// 全文檢索（替代 addFilter）
+var query3 = db.getAPIQuery('/testAP/testForm/1');
+query3.setFullTextSearch('關鍵字');
+var results = query3.getAPIResultsFull();
+```
+
+> **篩選規則**：不同欄位的 `addFilter` 為 AND；同一欄位的 `addFilter` 若運算子相同（如都是 `=`）為 OR，若運算子不同（如 `>` 和 `<`）為 Range。日期篩選格式需為 `yyyy/MM/dd` 或 `yyyy/MM/dd HH:mm:ss`。
 
 ---
 
@@ -198,6 +247,13 @@ for (var i = 0; i < rowCount; i++) {
 
 // 刪除子表格所有列後重新插入
 entry.deleteSubtableRowAll('1000010');
+
+// 用負數 ID 建立子表格新列（同一負數 ID 的值歸到同一列）
+entry.setSubtableFieldValue('1000011', -100, '第一列值A');
+entry.setSubtableFieldValue('1000012', -100, '第一列值B');  // 與上面同一列
+entry.setSubtableFieldValue('1000011', -101, '第二列值A');  // 新的一列
+entry.setSubtableFieldValue('1000012', -101, '第二列值B');
+entry.save();
 ```
 
 ---
@@ -228,11 +284,18 @@ var entry = param.getUpdatedEntry();
 entry.setFieldValue('1000050', '後處理值');
 entry.save();
 
-// 子表格遍歷
+// 子表格遍歷（iterator 方式）
 var subtableIter = param.getSubtableEntry('1000010');
 while (subtableIter.hasNext()) {
   var row = subtableIter.next();
   var itemName = row.getNewValue('1000011');
+}
+
+// 子表格遍歷（toArray 方式，可用索引存取）
+var arr = param.getSubtableEntry('1000010').toArray();
+for (var i = 0; i < arr.length; i++) {
+  var date = arr[i].getNewValue('1000003');
+  var amount = arr[i].getNewValue('1000004');
 }
 ```
 
@@ -479,7 +542,52 @@ entry.setFieldValue('5000001', String(data.rate));
 entry.save();
 ```
 
-### 6. 審核通過後更新狀態（Approval Workflow）
+### 6. 多選欄位複製（覆寫目標欄位）
+```js
+// 從來源多選欄位取得所有值，用 | 分隔後寫入目標欄位
+var values = entry.getFieldValues('1000010');
+var combined = '';
+for (var i = 0; i < values.length; i++) {
+  if (i === 0) {
+    combined = values[i];
+  } else {
+    combined = combined + '|' + values[i];
+  }
+}
+entry.setFieldValue('1000020', combined, false);  // false = 覆寫而非附加
+entry.save();
+```
+
+### 7. Post-Workflow 取得未遮罩值
+```js
+// 表單有遮罩欄位時，param.getUpdatedEntry() 會取得遮罩後的值
+// 需用 setUpdateMode + setIgnoreAllMasks 組合取得原始值
+var recordId = param.getNewNodeId(param.getUpdatedEntry().getKeyFieldId());
+var query = db.getAPIQuery('/testAP/testForm/1');
+query.setUpdateMode();
+query.setIgnoreAllMasks(true);  // 取消所有遮罩
+var entry = query.getAPIEntry(recordId);
+var realPhone = entry.getFieldValue('1000030');  // 取得未遮罩的電話號碼
+
+// 若只需解除特定欄位的遮罩
+var query2 = db.getAPIQuery('/testAP/testForm/1');
+query2.setUpdateMode();
+query2.addIgnoreMaskDomain('1000030');  // 僅解除此欄位
+var entry2 = query2.getAPIEntry(recordId);
+```
+
+### 8. 觸發其他表單的 Workflow
+```js
+// 修改其他表單的記錄時，預設不會觸發該表單的 workflow
+// 需用 setIfExecuteWorkflow(true) 啟用
+var query = db.getAPIQuery('/testAP/otherForm/2');
+var entry = query.getAPIEntry(targetRecordId);
+entry.setFieldValue('2000001', '新值');
+entry.setIfExecuteWorkflow(true);  // 觸發 otherForm 的 pre/post-workflow
+entry.save();
+```
+
+### 9. 審核通過後更新狀態（Approval Workflow）
 ```js
 var action = approvalParam.getApprovalAction();
 if (action === 'FINISH') {
