@@ -381,9 +381,9 @@ mailer.sendAppNotification('user@example.com', '通知訊息', '/testForm/1', 3)
 | `setHeader(name, value)` | 設定後續 HTTP 請求的 Header |
 | `removeHeader(name)` | 移除已設定的 Header |
 | `ignoreSSL()` | 忽略 SSL 憑證驗證 |
-| `downloadFile(fileUrl)` | 將 URL 的檔案下載到資料庫 upload 資料夾 |
-| `downloadFile(fileUrl, postBody)` | 以 POST 方式下載檔案 |
-| `postFile(sourceUrl, destinationUrl)` | 將來源檔案上傳到指定 URL |
+| `downloadFile(fileUrl)` | 下載 URL 檔案到資料庫，回傳檔案物件（可直接用 `setFieldValue` 寫入欄位） |
+| `downloadFile(fileUrl, postBody)` | 以 POST 方式下載檔案，回傳檔案物件 |
+| `postFile(sourceUrl, destinationUrl)` | 將來源檔案上傳到指定 URL，回傳上傳後的檔案物件 |
 | `logWorkflowError(text)` | 在工作流程日誌中記錄錯誤訊息 |
 
 ```js
@@ -393,10 +393,13 @@ util.setHeader('Content-Type', 'application/json');
 var result = util.postURL('https://api.example.com/data', JSON.stringify({ key: 'val' }));
 var data = JSON.parse(result);
 
-// 下載檔案並寫入欄位
-var fileContent = util.downloadFile('https://example.com/file.pdf');
-entry.setFieldFile('1000020', 'report.pdf', fileContent);
+// 下載檔案並寫入欄位（downloadFile 回傳檔案物件，直接用 setFieldValue 寫入）
+var fileObj = util.downloadFile('https://example.com/file.pdf');
+entry.setFieldValue(1000087, fileObj);
 entry.save();
+
+// 上傳檔案到外部 URL
+var uploaded = util.postFile('https://example.com/source.pdf', 'https://api.example.com/upload');
 ```
 
 ---
